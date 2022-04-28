@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+	<http:listener-config name="HTTP_Listener_config"
+		doc:name="HTTP Listener config"
+		doc:id="84e81199-0b0e-43da-a09b-ca12bfcced06">
+		<http:listener-connection host="0.0.0.0"
+			port="8082" protocol="HTTPS">
+			<tls:context >
+				<tls:key-store type="jks" path="server-keystore.jks" alias="mule-server" keyPassword="keystorepass" password="keystorepass" />
+			</tls:context>
+		</http:listener-connection>
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="6274b52f-64a1-4dbd-a71e-3f24a524a32f" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="admin123"/>
+	</db:config>
+	<http:listener-config name="HTTP_Listener_client-config" doc:name="HTTP Listener config" doc:id="c617e326-03f0-4008-a1d4-d822aba705e5" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="905641e6-6554-47ce-9fcf-90386cf936b7" >
+		<http:request-connection protocol="HTTPS" host="localhost" port="8082" >
+			<tls:context >
+				<tls:trust-store path="client-truststore.jks" password="keystorepass" type="jks" />
+			</tls:context>
+		</http:request-connection>
+		<http:default-headers />
+	</http:request-config>
+	<flow name="db-main-flow-server" doc:id="abe5b3b1-08b3-47ef-90fc-ecf197712a44" >
+		<http:listener doc:name="Http Listener" doc:id="a0a50995-6f4c-498d-b1ed-44bb10fb2de0" config-ref="HTTP_Listener_config" path="/api/firstDb"/>
+		<logger level="INFO" doc:name="Start" doc:id="8e341ce3-5fbc-429c-81aa-ae8608e7a1be" message="#['entry to db-main-flow']"/>
+		<set-variable value="#[attributes.queryParams.empId default 123]" doc:name="Set Variable" doc:id="47a36d45-cdc4-42c6-adf4-fd22da8cb540" variableName="query"/>
+		<db:select doc:name="Select reords from table" doc:id="dd455f26-e77b-43eb-90bb-1a69d426b9c9" config-ref="Database_Config">
+			<db:sql ><![CDATA[#["select * from mulesoft.employee WHERE empId = :qp"]]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	qp: vars.query,
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="61d22999-65ea-4b28-8e84-781e0cd0dae0" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json skipNullOn="everywhere"
+---
+{
+	"Id": payload[0].empId,
+	"location": payload[0].emp_location
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="my-db-pocFlow" doc:id="fb195b05-6165-47c8-ac55-dc3708ba7a07" >
+		<http:listener doc:name="Listener" doc:id="493cd9a4-a6f3-49b3-bad7-88c2f63e81a9" config-ref="HTTP_Listener_client-config" path="/api/clientapp"/>
+		<logger level="INFO" doc:name="Logger" doc:id="87e9622e-71a9-4dd4-a428-cb87e6c31f34" message="entry to client app"/>
+		<http:request method="GET" doc:name="Request" doc:id="12fa4158-9bbe-419b-8e11-418a1ecadb5f" path="/api/firstDb" config-ref="HTTP_Request_configuration">
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	empId : 312
+}]]]></http:query-params>
+		</http:request>
+	</flow>
+</mule>
